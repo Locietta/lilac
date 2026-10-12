@@ -15,7 +15,9 @@ struct LexRange {
 };
 
 /// Contiguous storage shared by every language lexer. Styles are lexer-local
-/// IDs; line states are opaque checkpoints interpreted only by that lexer.
+/// IDs; line states are opaque checkpoints interpreted only by that lexer, so
+/// every range of a document must be lexed by the same lexer. Call assign()
+/// before lexing it with another one.
 struct Document {
     std::string source;
     std::vector<u8> styles;

@@ -16,6 +16,9 @@ struct LanguageInfo {
     std::string_view name;
 };
 
+/// lex() re-lexes lex_context.range, which must start at a line start, and
+/// reads the line states as written by an earlier lex() of the same lexer.
+/// A foreign line state yields wrong styles but still terminates.
 template <typename T>
 concept LexerImplementation = requires(const T &implementation, LexContext &lex_context) {
     typename T::Style;

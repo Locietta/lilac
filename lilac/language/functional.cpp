@@ -185,6 +185,9 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
 
 [[nodiscard]] u32 continue_comment(LexContext &context, usize &position, usize line_end, u32 state, Dialect dialect) {
     const CommentDelimiters delimiters = block_delimiters(dialect);
+    // Only a foreign line state reaches here for a dialect without block
+    // comments; the empty delimiters would never advance.
+    if (delimiters.open.empty()) return k_normal;
     u32 depth = std::max<u32>(1, state & k_payload_mask);
     const usize token_begin = position;
     while (position < line_end && depth != 0) {

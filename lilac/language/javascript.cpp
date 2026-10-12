@@ -414,6 +414,9 @@ void paint_doc_tags(LexContext &context, usize begin, usize end) {
         }
         if (context.source.substr(position).starts_with("/*")) {
             const bool documentation = position + 2 < content_end && context.source[position + 2] == '*';
+            // Step over the opener so that `/*/` does not close the comment.
+            paint(context, {.begin = position, .end = position + 2}, documentation ? Style::DOC_COMMENT : Style::COMMENT);
+            position += 2;
             state = suspended_state(documentation ? k_doc_comment : k_block_comment, state);
             continue;
         }

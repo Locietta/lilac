@@ -119,6 +119,9 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
         if (current == ' ' || current == '\t') {
             ++position;
         } else if (context.source.substr(position).starts_with("/*")) {
+            // Step over the opener so that `/*/` does not close the comment.
+            paint(context, {.begin = position, .end = position + 2}, Style::COMMENT);
+            position += 2;
             state = k_comment | static_cast<u32>(brace_depth);
         } else if (context.source.substr(position).starts_with("//")) {
             paint(context, {.begin = position, .end = line_end}, Style::COMMENT);

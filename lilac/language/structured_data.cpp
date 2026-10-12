@@ -136,6 +136,9 @@ struct QuotedToken {
             paint(context, {.begin = position, .end = line_end}, Style::COMMENT);
             break;
         } else if (context.source.substr(position).starts_with("/*")) {
+            // Step over the opener so that `/*/` does not close the comment.
+            paint(context, {.begin = position, .end = position + 2}, Style::COMMENT);
+            position += 2;
             state = k_json_block_comment;
         } else if (current == '"' || current == '\'') {
             const usize token_begin = position++;

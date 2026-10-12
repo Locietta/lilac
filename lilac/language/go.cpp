@@ -214,6 +214,9 @@ void paint_string_details(LexContext &context, usize begin, usize end) {
             break;
         }
         if (context.source.substr(position).starts_with("/*")) {
+            // Step over the opener so that `/*/` does not close the comment.
+            paint(context, {.begin = position, .end = position + 2}, Style::COMMENT);
+            position += 2;
             state = k_block_comment;
             continue;
         }

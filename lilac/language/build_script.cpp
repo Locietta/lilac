@@ -149,7 +149,7 @@ struct BracketDelimiter {
 
 [[nodiscard]] usize find_bracket_close(std::string_view source, usize position, usize end, usize hashes) noexcept {
     while (position < end) {
-        const usize close = source.find(']', position);
+        const usize close = source.substr(0, end).find(']', position);
         if (close == std::string_view::npos || close >= end) return end;
         usize cursor = close + 1;
         usize count = 0;
@@ -177,7 +177,7 @@ struct BracketDelimiter {
     const usize begin = position++;
     if (begin >= end) return end;
     if (dialect == Dialect::BATCH && (source[begin] == '%' || source[begin] == '!')) {
-        const usize close = source.find(source[begin], position);
+        const usize close = source.substr(0, end).find(source[begin], position);
         return close == std::string_view::npos || close >= end ? end : close + 1;
     }
     if (position < end && (source[position] == '{' || source[position] == '(' || source[position] == '<')) {
@@ -217,7 +217,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
     const u32 kind = state & k_state_mask;
     if (kind == k_block_comment) {
         std::string_view close = dialect == Dialect::INNO_SETUP ? "}" : "*/";
-        const usize found = context.source.find(close, position);
+        const usize found = context.source.substr(0, line_end).find(close, position);
         const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + close.size();
         paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
         position = token_end;
@@ -280,15 +280,15 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
         }
     }
     if (dialect == Dialect::INNO_SETUP && context.source[first] == '[') {
-        const usize close = context.source.find(']', first + 1);
+        const usize close = context.source.substr(0, line_end).find(']', first + 1);
         if (close != std::string_view::npos && close < line_end) {
             paint(context, {.begin = first, .end = close + 1}, Style::SECTION);
             return k_normal;
         }
     }
     if (dialect == Dialect::MAKE && first == begin && context.source[first] != '\t') {
-        const usize colon = context.source.find(':', first);
-        const usize equals = context.source.find('=', first);
+        const usize colon = context.source.substr(0, line_end).find(':', first);
+        const usize equals = context.source.substr(0, line_end).find('=', first);
         if (colon != std::string_view::npos && colon < line_end && (equals == std::string_view::npos || colon < equals))
             paint(context, {.begin = first, .end = colon}, Style::LABEL);
     }
@@ -317,7 +317,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
             break;
         }
         if (context.source.substr(position, 2) == "/*" && (dialect == Dialect::GN || dialect == Dialect::NSIS)) {
-            const usize found = context.source.find("*/", position + 2);
+            const usize found = context.source.substr(0, line_end).find("*/", position + 2);
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + 2;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;
@@ -325,7 +325,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
             continue;
         }
         if (current == '{' && dialect == Dialect::INNO_SETUP) {
-            const usize found = context.source.find('}', position + 1);
+            const usize found = context.source.substr(0, line_end).find('}', position + 1);
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + 1;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;

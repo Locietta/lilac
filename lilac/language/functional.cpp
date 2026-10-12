@@ -208,7 +208,7 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
 [[nodiscard]] u32 continue_triple(LexContext &context, usize &position, usize line_end, u32 state) {
     const std::string_view delimiter = (state & k_state_mask) == k_triple_double ? "\"\"\"" : "'''";
     const usize token_begin = position;
-    const usize close = context.source.find(delimiter, position);
+    const usize close = context.source.substr(0, line_end).find(delimiter, position);
     const usize token_end = close == std::string_view::npos || close >= line_end ? line_end : close + delimiter.size();
     paint(context, {.begin = token_begin, .end = token_end}, Style::STRING);
     paint_escapes(context, token_begin, token_end);
@@ -245,7 +245,7 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
             break;
         }
         if (dialect == Dialect::HASKELL && context.source.substr(position).starts_with("{-#")) {
-            const usize close = context.source.find("#-}", position + 3);
+            const usize close = context.source.substr(0, line_end).find("#-}", position + 3);
             const usize token_end = close == std::string_view::npos || close >= line_end ? line_end : close + 3;
             paint(context, {.begin = position, .end = token_end}, Style::DIRECTIVE);
             position = token_end;

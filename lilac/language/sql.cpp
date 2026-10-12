@@ -161,7 +161,7 @@ void paint_string_escapes(LexContext &context, usize begin, usize end) {
             continue;
         }
         if (kind == k_dollar_string) {
-            const usize found = context.source.find("$$", position);
+            const usize found = context.source.substr(0, line_end).find("$$", position);
             position = found == std::string_view::npos || found >= line_end ? line_end : found + 2;
             paint(context, {.begin = begin, .end = position}, Style::STRING);
             if (found == std::string_view::npos || found >= line_end) break;
@@ -182,7 +182,7 @@ void paint_string_escapes(LexContext &context, usize begin, usize end) {
         } else if (context.source.substr(position).starts_with("$$")) {
             const usize token_begin = position;
             position += 2;
-            const usize found = context.source.find("$$", position);
+            const usize found = context.source.substr(0, line_end).find("$$", position);
             position = found == std::string_view::npos || found >= line_end ? line_end : found + 2;
             paint(context, {.begin = token_begin, .end = position}, Style::STRING);
             if (found == std::string_view::npos || found >= line_end) state = k_dollar_string;

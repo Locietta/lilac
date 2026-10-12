@@ -110,7 +110,7 @@ struct QuotedToken {
     while (position < line_end) {
         const u32 kind = state & k_state_mask;
         if (kind == k_json_block_comment) {
-            const usize found = context.source.find("*/", position);
+            const usize found = context.source.substr(0, line_end).find("*/", position);
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + 2;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;
@@ -181,7 +181,7 @@ struct QuotedToken {
     const u32 initial_kind = state & k_state_mask;
     if (initial_kind == k_toml_triple_double || initial_kind == k_toml_triple_single) {
         const std::string_view delimiter = initial_kind == k_toml_triple_double ? "\"\"\"" : "'''";
-        const usize found = context.source.find(delimiter, position);
+        const usize found = context.source.substr(0, line_end).find(delimiter, position);
         const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + delimiter.size();
         paint(context, {.begin = position, .end = token_end}, Style::BLOCK_STRING);
         if (initial_kind == k_toml_triple_double) paint_escapes(context, position, token_end);
@@ -202,7 +202,7 @@ struct QuotedToken {
             paint(context, {.begin = position, .end = line_end}, Style::COMMENT);
             break;
         } else if (before_assignment && current == '[') {
-            const usize close = context.source.find(']', position + 1);
+            const usize close = context.source.substr(0, line_end).find(']', position + 1);
             const usize token_end = close == std::string_view::npos || close >= line_end ? line_end : close + 1;
             paint(context, {.begin = position, .end = token_end}, Style::SECTION);
             position = token_end;
@@ -210,7 +210,7 @@ struct QuotedToken {
             const bool double_quoted = current == '"';
             const std::string_view delimiter = double_quoted ? "\"\"\"" : "'''";
             const usize token_begin = position;
-            const usize found = context.source.find(delimiter, position + 3);
+            const usize found = context.source.substr(0, line_end).find(delimiter, position + 3);
             position = found == std::string_view::npos || found >= line_end ? line_end : found + 3;
             paint(context, {.begin = token_begin, .end = position}, Style::BLOCK_STRING);
             if (double_quoted) paint_escapes(context, token_begin, position);

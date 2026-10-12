@@ -290,7 +290,7 @@ struct QuotedToken {
     const u32 kind = state & k_state_mask;
     const std::string_view delimiter = kind == k_triple_double ? "\"\"\"" : kind == k_triple_single ? "'''" : "`";
     const usize token_begin = position;
-    const usize found = context.source.find(delimiter, position);
+    const usize found = context.source.substr(0, end).find(delimiter, position);
     position = found == std::string_view::npos || found >= end ? end : found + delimiter.size();
     paint(context, {.begin = token_begin, .end = position}, Style::STRING);
     if (kind != k_triple_single && kind != k_backtick_string) paint_string_details(context, token_begin, position);
@@ -387,7 +387,7 @@ struct QuotedToken {
             const u32 string_state = double_quoted ? k_triple_double : k_triple_single;
             const usize token_begin = position;
             position += 3;
-            const usize found = context.source.find(double_quoted ? "\"\"\"" : "'''", position);
+            const usize found = context.source.substr(0, line_end).find(double_quoted ? "\"\"\"" : "'''", position);
             position = found == std::string_view::npos || found >= line_end ? line_end : found + 3;
             paint(context, {.begin = token_begin, .end = position}, Style::STRING);
             if (double_quoted) paint_string_details(context, token_begin, position);
@@ -396,7 +396,7 @@ struct QuotedToken {
         }
         if (dialect == Dialect::D && current == '`') {
             const usize token_begin = position++;
-            const usize found = context.source.find('`', position);
+            const usize found = context.source.substr(0, line_end).find('`', position);
             position = found == std::string_view::npos || found >= line_end ? line_end : found + 1;
             paint(context, {.begin = token_begin, .end = position}, Style::STRING);
             if (found == std::string_view::npos || found >= line_end) state = k_backtick_string;
@@ -429,7 +429,7 @@ struct QuotedToken {
             continue;
         }
         if (dialect == Dialect::CSHARP && current == '[') {
-            const usize close = context.source.find(']', position + 1);
+            const usize close = context.source.substr(0, line_end).find(']', position + 1);
             if (close != std::string_view::npos && close < line_end) {
                 paint(context, {.begin = position, .end = close + 1}, Style::ATTRIBUTE);
                 position = close + 1;

@@ -367,7 +367,7 @@ void paint_doc_tags(LexContext &context, usize begin, usize end) {
     while (position < content_end) {
         const u32 kind = state & k_state_mask;
         if (kind == k_block_comment || kind == k_doc_comment) {
-            const usize found = context.source.find("*/", position);
+            const usize found = context.source.substr(0, content_end).find("*/", position);
             const usize token_end = found == std::string_view::npos || found >= content_end ? content_end : found + 2;
             const Style style = kind == k_doc_comment ? Style::DOC_COMMENT : Style::COMMENT;
             paint(context, {.begin = position, .end = token_end}, style);

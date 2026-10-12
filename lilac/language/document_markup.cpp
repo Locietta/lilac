@@ -108,7 +108,7 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
 [[nodiscard]] u32 continue_state(LexContext &context, usize &position, usize line_end, u32 state, Dialect dialect) {
     const u32 kind = state & k_state_mask;
     if (kind == k_verbatim) {
-        const usize close = context.source.find("\\end{verbatim}", position);
+        const usize close = context.source.substr(0, line_end).find("\\end{verbatim}", position);
         const usize token_end = close == std::string_view::npos || close >= line_end ? line_end : close + 14;
         paint(context, {.begin = position, .end = token_end}, Style::STRING);
         position = token_end;
@@ -261,7 +261,7 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
         }
         if ((dialect == Dialect::LATEX || dialect == Dialect::TYPST) && current == '$') {
             const usize token_begin = position++;
-            const usize close = context.source.find('$', position);
+            const usize close = context.source.substr(0, line_end).find('$', position);
             position = close == std::string_view::npos || close >= line_end ? line_end : close + 1;
             paint(context, {.begin = token_begin, .end = position}, Style::STRING);
             continue;

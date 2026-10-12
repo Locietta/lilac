@@ -96,7 +96,7 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
     while (position < line_end) {
         const u32 kind = state & k_state_mask;
         if (kind == k_comment) {
-            const usize found = context.source.find("*/", position);
+            const usize found = context.source.substr(0, line_end).find("*/", position);
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + 2;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;

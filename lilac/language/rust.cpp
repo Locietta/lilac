@@ -145,7 +145,8 @@ void paint_string(LexContext &context, usize begin, usize end, usize content_beg
 }
 
 [[nodiscard]] TokenEnd raw_end(std::string_view source, usize position, usize end, usize hashes) {
-    for (usize quote = source.find('"', position); quote != std::string_view::npos && quote < end; quote = source.find('"', quote + 1)) {
+    for (usize quote = source.substr(0, end).find('"', position); quote != std::string_view::npos && quote < end;
+         quote = source.substr(0, end).find('"', quote + 1)) {
         usize cursor = quote + 1;
         usize count = 0;
         while (cursor < end && count < hashes && source[cursor] == '#') {

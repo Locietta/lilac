@@ -245,7 +245,7 @@ struct LongDelimiter {
 
 [[nodiscard]] usize long_close(std::string_view source, usize position, usize end, usize equals) noexcept {
     while (position < end) {
-        const usize close = source.find(']', position);
+        const usize close = source.substr(0, end).find(']', position);
         if (close == std::string_view::npos || close >= end) return end;
         usize cursor = close + 1;
         usize count = 0;
@@ -350,7 +350,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
     u32 depth = std::max<u32>(1, state & k_payload_mask);
     const usize token_begin = position;
     if (delimiters.open == delimiters.close) {
-        const usize close = context.source.find(delimiters.close, position);
+        const usize close = context.source.substr(0, line_end).find(delimiters.close, position);
         position = close == std::string_view::npos || close >= line_end ? line_end : close + delimiters.close.size();
         paint(context, {.begin = token_begin, .end = position}, Style::COMMENT);
         return close == std::string_view::npos || close >= line_end ? state : k_normal;
@@ -385,7 +385,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
     const usize first = skip_space(context.source, position, line_end);
     const usize close = (kind == k_here_double || kind == k_here_single) && context.source.substr(first).starts_with(delimiter) ?
                             first :
-                            context.source.find(delimiter, position);
+                            context.source.substr(0, line_end).find(delimiter, position);
     const usize token_end = close == std::string_view::npos || close >= line_end ? line_end : close + delimiter.size();
     paint(context, {.begin = token_begin, .end = token_end}, Style::STRING);
     paint_string_details(context, token_begin, token_end, dialect);

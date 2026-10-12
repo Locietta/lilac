@@ -172,7 +172,8 @@ struct RawStringEnd {
     const usize parenthesis = raw_open_parenthesis(source, quote, source.size());
     if (parenthesis == source.size()) return {.position = end};
     const std::string_view delimiter = source.substr(quote + 1, parenthesis - quote - 1);
-    for (usize found = source.find(')', position); found != std::string_view::npos && found < end; found = source.find(')', found + 1)) {
+    for (usize found = source.substr(0, end).find(')', position); found != std::string_view::npos && found < end;
+         found = source.substr(0, end).find(')', found + 1)) {
         const usize quote_position = found + 1 + delimiter.size();
         if (quote_position < end && source.substr(found + 1, delimiter.size()) == delimiter && source[quote_position] == '"') {
             return {.position = quote_position + 1, .closed = true};
@@ -282,7 +283,7 @@ void paint_quoted(LexContext &context, usize begin, usize end, usize escape_begi
 
     while (position < content_end) {
         if (state == k_block_comment || state == k_doc_comment) {
-            const usize found = context.source.find("*/", position);
+            const usize found = context.source.substr(0, content_end).find("*/", position);
             const usize token_end = found == std::string_view::npos || found >= content_end ? content_end : found + 2;
             paint(context, {.begin = position, .end = token_end}, state == k_doc_comment ? Style::DOC_COMMENT : Style::COMMENT);
             position = token_end;
@@ -338,7 +339,7 @@ void paint_quoted(LexContext &context, usize begin, usize end, usize escape_begi
         if (context.source.substr(position).starts_with("/*")) {
             const bool documentation =
                 position + 2 < content_end && (context.source[position + 2] == '*' || context.source[position + 2] == '!');
-            const usize found = context.source.find("*/", position + 2);
+            const usize found = context.source.substr(0, content_end).find("*/", position + 2);
             const usize token_end = found == std::string_view::npos || found >= content_end ? content_end : found + 2;
             paint(context, {.begin = position, .end = token_end}, documentation ? Style::DOC_COMMENT : Style::COMMENT);
             position = token_end;
@@ -358,7 +359,7 @@ void paint_quoted(LexContext &context, usize begin, usize end, usize escape_begi
                 position = next_non_space(context.source, position, content_end);
                 if (position < content_end && (context.source[position] == '<' || context.source[position] == '"')) {
                     const char close = context.source[position] == '<' ? '>' : '"';
-                    const usize found = context.source.find(close, position + 1);
+                    const usize found = context.source.substr(0, content_end).find(close, position + 1);
                     const usize header_end = found == std::string_view::npos || found >= content_end ? content_end : found + 1;
                     paint(context, {.begin = position, .end = header_end}, Style::HEADER);
                     position = header_end;

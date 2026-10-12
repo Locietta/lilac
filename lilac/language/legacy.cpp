@@ -204,7 +204,7 @@ void paint_escapes(LexContext &context, usize begin, usize end, Dialect dialect)
 [[nodiscard]] u32 continue_comment(LexContext &context, usize &position, usize line_end, u32 state) {
     const u32 kind = state & k_state_mask;
     const std::string_view close = kind == k_pascal_brace ? "}" : kind == k_pascal_paren ? "*)" : "*/";
-    const usize found = context.source.find(close, position);
+    const usize found = context.source.substr(0, line_end).find(close, position);
     const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + close.size();
     paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
     position = token_end;
@@ -242,7 +242,7 @@ void paint_escapes(LexContext &context, usize begin, usize end, Dialect dialect)
         return k_normal;
     }
     if (dialect == Dialect::SAS && context.source[first] == '*') {
-        const usize semicolon = context.source.find(';', first + 1);
+        const usize semicolon = context.source.substr(0, line_end).find(';', first + 1);
         const usize token_end = semicolon == std::string_view::npos || semicolon >= line_end ? line_end : semicolon + 1;
         paint(context, {.begin = first, .end = token_end}, Style::COMMENT);
         position = token_end;
@@ -263,7 +263,7 @@ void paint_escapes(LexContext &context, usize begin, usize end, Dialect dialect)
             break;
         }
         if ((dialect == Dialect::POWERBUILDER || dialect == Dialect::SAS) && context.source.substr(position, 2) == "/*") {
-            const usize found = context.source.find("*/", position + 2);
+            const usize found = context.source.substr(0, line_end).find("*/", position + 2);
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + 2;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;
@@ -273,7 +273,7 @@ void paint_escapes(LexContext &context, usize begin, usize end, Dialect dialect)
         if (dialect == Dialect::PASCAL && (current == '{' || context.source.substr(position, 2) == "(*")) {
             const bool brace = current == '{';
             const std::string_view close = brace ? "}" : "*)";
-            const usize found = context.source.find(close, position + (brace ? 1 : 2));
+            const usize found = context.source.substr(0, line_end).find(close, position + (brace ? 1 : 2));
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + close.size();
             const bool directive = brace && position + 1 < line_end && context.source[position + 1] == '$';
             paint(context, {.begin = position, .end = token_end}, directive ? Style::DIRECTIVE : Style::COMMENT);
@@ -283,7 +283,7 @@ void paint_escapes(LexContext &context, usize begin, usize end, Dialect dialect)
             continue;
         }
         if ((dialect == Dialect::APDL || dialect == Dialect::ABAQUS) && current == '*' && position == first) {
-            const usize token_end = context.source.find_first_of(", \t", position);
+            const usize token_end = context.source.substr(0, line_end).find_first_of(", \t", position);
             paint(context, {.begin = position, .end = token_end == std::string_view::npos || token_end > line_end ? line_end : token_end},
                   Style::DIRECTIVE);
             position = token_end == std::string_view::npos || token_end > line_end ? line_end : token_end;

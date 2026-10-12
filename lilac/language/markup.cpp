@@ -137,7 +137,7 @@ struct TagResult {
         const u32 kind = state & k_state_mask;
         if (kind == k_comment || kind == k_cdata) {
             const std::string_view delimiter = kind == k_comment ? "-->" : "]]>";
-            const usize found = context.source.find(delimiter, position);
+            const usize found = context.source.substr(0, line_end).find(delimiter, position);
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + delimiter.size();
             paint(context, {.begin = position, .end = token_end}, kind == k_comment ? Style::COMMENT : Style::DOCUMENTATION);
             position = token_end;
@@ -165,7 +165,7 @@ struct TagResult {
             continue;
         }
         if (context.source.substr(position).starts_with("<!") || context.source.substr(position).starts_with("<?")) {
-            const usize close = context.source.find(context.source[position + 1] == '?' ? "?>" : ">", position + 2);
+            const usize close = context.source.substr(0, line_end).find(context.source[position + 1] == '?' ? "?>" : ">", position + 2);
             const usize token_end =
                 close == std::string_view::npos || close >= line_end ? line_end : close + (context.source[position + 1] == '?' ? 2 : 1);
             paint(context, {.begin = position, .end = token_end}, Style::DIRECTIVE);
@@ -216,13 +216,13 @@ void lex_markdown_inline(LexContext &context, usize position, usize end) {
             const usize token_begin = position;
             position += count;
             const std::string delimiter(count, '`');
-            const usize close = context.source.find(delimiter, position);
+            const usize close = context.source.substr(0, end).find(delimiter, position);
             position = close == std::string_view::npos || close >= end ? end : close + count;
             paint(context, {.begin = token_begin, .end = position}, Style::CODE);
         } else if (current == '[') {
-            const usize text_close = context.source.find(']', position + 1);
+            const usize text_close = context.source.substr(0, end).find(']', position + 1);
             if (text_close != std::string_view::npos && text_close < end && text_close + 1 < end && context.source[text_close + 1] == '(') {
-                const usize target_close = context.source.find(')', text_close + 2);
+                const usize target_close = context.source.substr(0, end).find(')', text_close + 2);
                 const usize token_end = target_close == std::string_view::npos || target_close >= end ? end : target_close + 1;
                 paint(context, {.begin = position, .end = text_close + 1}, Style::VALUE);
                 paint(context, {.begin = text_close + 1, .end = token_end}, Style::LINK);
@@ -231,7 +231,7 @@ void lex_markdown_inline(LexContext &context, usize position, usize end) {
                 ++position;
             }
         } else if (current == '<') {
-            const usize close = context.source.find('>', position + 1);
+            const usize close = context.source.substr(0, end).find('>', position + 1);
             if (close != std::string_view::npos && close < end) {
                 paint(context, {.begin = position, .end = close + 1}, Style::LINK);
                 position = close + 1;

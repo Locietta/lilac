@@ -186,7 +186,7 @@ void paint_string_details(LexContext &context, usize begin, usize end) {
     while (position < content_end) {
         const u32 kind = state & k_state_mask;
         if (kind == k_block_comment) {
-            const usize found = context.source.find("*/", position);
+            const usize found = context.source.substr(0, content_end).find("*/", position);
             const usize token_end = found == std::string_view::npos || found >= content_end ? content_end : found + 2;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;
@@ -195,7 +195,7 @@ void paint_string_details(LexContext &context, usize begin, usize end) {
             continue;
         }
         if (kind == k_raw_string) {
-            const usize found = context.source.find('`', position);
+            const usize found = context.source.substr(0, content_end).find('`', position);
             const usize token_end = found == std::string_view::npos || found >= content_end ? content_end : found + 1;
             paint(context, {.begin = position, .end = token_end}, Style::RAW_STRING);
             position = token_end;
@@ -221,7 +221,7 @@ void paint_string_details(LexContext &context, usize begin, usize end) {
             continue;
         }
         if (current == '`') {
-            const usize found = context.source.find('`', position + 1);
+            const usize found = context.source.substr(0, content_end).find('`', position + 1);
             const usize token_end = found == std::string_view::npos || found >= content_end ? content_end : found + 1;
             paint(context, {.begin = position, .end = token_end}, Style::RAW_STRING);
             position = token_end;

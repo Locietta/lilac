@@ -439,12 +439,14 @@ void paint_quoted(LexContext &context, usize begin, usize end, usize escape_begi
     }
 
     if (end > content_end) {
-        const Style newline_style = state == k_block_comment    ? Style::COMMENT :
-                                    state == k_doc_comment      ? Style::DOC_COMMENT :
-                                    state == k_raw_string       ? Style::RAW_STRING :
-                                    state == k_line_comment     ? Style::COMMENT :
-                                    state == k_doc_line_comment ? Style::DOC_COMMENT :
-                                                                  Style::DEFAULT;
+        // A raw string opened on this line carries its opener in the payload.
+        const u32 kind = state & k_state_mask;
+        const Style newline_style = kind == k_block_comment    ? Style::COMMENT :
+                                    kind == k_doc_comment      ? Style::DOC_COMMENT :
+                                    kind == k_raw_string       ? Style::RAW_STRING :
+                                    kind == k_line_comment     ? Style::COMMENT :
+                                    kind == k_doc_line_comment ? Style::DOC_COMMENT :
+                                                                 Style::DEFAULT;
         paint(context, {.begin = content_end, .end = end}, newline_style);
     }
 

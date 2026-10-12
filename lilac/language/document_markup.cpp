@@ -137,16 +137,19 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
     return depth == 0 ? k_normal : k_block_comment | depth;
 }
 
+/// Paints the line break of a line that ends inside a comment or verbatim block.
+[[nodiscard]] u32 finish_open_line(LexContext &context, usize line_end, usize end, u32 state) {
+    if (end > line_end)
+        paint(context, {.begin = line_end, .end = end}, (state & k_state_mask) == k_verbatim ? Style::STRING : Style::COMMENT);
+    return state;
+}
+
 [[nodiscard]] u32 lex_line(LexContext &context, usize begin, usize end, u32 state, Dialect dialect) {
     const usize line_end = content_end(context.source, begin, end);
     usize position = begin;
     if ((state & k_state_mask) != k_normal) {
         state = continue_state(context, position, line_end, state, dialect);
-        if (state != k_normal) {
-            if (end > line_end)
-                paint(context, {.begin = line_end, .end = end}, (state & k_state_mask) == k_verbatim ? Style::STRING : Style::COMMENT);
-            return state;
-        }
+        if (state != k_normal) return finish_open_line(context, line_end, end, state);
     }
 
     const usize first = skip_space(context.source, position, line_end);
@@ -170,7 +173,7 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
     }
     if (dialect == Dialect::TEXINFO && context.source.substr(first).starts_with("@ignore")) {
         paint(context, {.begin = first, .end = line_end}, Style::COMMENT);
-        return k_ignore;
+        return finish_open_line(context, line_end, end, k_ignore);
     }
     if (dialect == Dialect::TYPST && context.source[first] == '=') {
         usize marker_end = first;
@@ -196,12 +199,12 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
             position += 2;
             state = continue_state(context, position, line_end, k_block_comment | 1, dialect);
             paint(context, {.begin = token_begin, .end = token_begin + 2}, Style::COMMENT);
-            if (state != k_normal) return state;
+            if (state != k_normal) return finish_open_line(context, line_end, end, state);
             continue;
         }
         if (dialect == Dialect::LATEX && context.source.substr(position).starts_with("\\begin{verbatim}")) {
             paint(context, {.begin = position, .end = line_end}, Style::STRING);
-            return k_verbatim;
+            return finish_open_line(context, line_end, end, k_verbatim);
         }
         if (dialect == Dialect::LATEX && current == '\\') {
             const usize token_begin = position++;

@@ -393,6 +393,14 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
     return close == std::string_view::npos || close >= line_end ? state : k_normal;
 }
 
+/// Paints the line break of a line that ends inside a comment or string.
+[[nodiscard]] u32 finish_open_line(LexContext &context, usize line_end, usize end, u32 state) {
+    const u32 kind = state & k_state_mask;
+    if (end > line_end)
+        paint(context, {.begin = line_end, .end = end}, kind == k_block_comment || kind == k_long_comment ? Style::COMMENT : Style::STRING);
+    return state;
+}
+
 [[nodiscard]] u32 lex_line(LexContext &context, usize begin, usize end, u32 state, Dialect dialect) {
     const usize line_end = content_end(context.source, begin, end);
     usize position = begin;
@@ -408,17 +416,12 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
     } else if (kind != k_normal) {
         state = continue_string(context, position, line_end, state, dialect);
     }
-    if (state != k_normal) {
-        if (end > line_end)
-            paint(context, {.begin = line_end, .end = end},
-                  kind == k_block_comment || kind == k_long_comment ? Style::COMMENT : Style::STRING);
-        return state;
-    }
+    if (state != k_normal) return finish_open_line(context, line_end, end, state);
 
     const usize first = skip_space(context.source, position, line_end);
     if (line_block_open(context.source, first, dialect)) {
         paint(context, {.begin = first, .end = line_end}, Style::COMMENT);
-        return k_block_comment | 1;
+        return finish_open_line(context, line_end, end, k_block_comment | 1);
     }
     Pending pending = Pending::NONE;
     bool command_position = dialect == Dialect::POWERSHELL;
@@ -436,7 +439,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
                 paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
                 position = token_end;
                 if (token_end == line_end && !long_closed_at(context.source, token_end, delimiter.equals))
-                    return k_long_comment | static_cast<u32>(delimiter.equals + 1);
+                    return finish_open_line(context, line_end, end, k_long_comment | static_cast<u32>(delimiter.equals + 1));
                 continue;
             }
         }
@@ -446,7 +449,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
             position += delimiters.open.size();
             state = continue_block(context, position, line_end, k_block_comment | 1, dialect);
             paint(context, {.begin = token_begin, .end = token_begin + delimiters.open.size()}, Style::COMMENT);
-            if (state != k_normal) return state;
+            if (state != k_normal) return finish_open_line(context, line_end, end, state);
             continue;
         }
         if (line_comment(context.source, position, first, dialect)) {
@@ -461,7 +464,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
                 paint(context, {.begin = token_begin, .end = token_end}, Style::STRING);
                 position = token_end;
                 if (token_end == line_end && !long_closed_at(context.source, token_end, delimiter.equals))
-                    return k_long_string | static_cast<u32>(delimiter.equals + 1);
+                    return finish_open_line(context, line_end, end, k_long_string | static_cast<u32>(delimiter.equals + 1));
                 continue;
             }
         }
@@ -472,7 +475,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
             position += 3;
             state = continue_string(context, position, line_end, double_quote ? k_triple_double : k_triple_single, dialect);
             paint(context, {.begin = token_begin, .end = position}, Style::STRING);
-            if (state != k_normal) return state;
+            if (state != k_normal) return finish_open_line(context, line_end, end, state);
             continue;
         }
         if (dialect == Dialect::POWERSHELL &&
@@ -481,7 +484,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
             const bool double_quote = context.source[position + 1] == '"';
             position += 2;
             paint(context, {.begin = token_begin, .end = line_end}, Style::STRING);
-            return double_quote ? k_here_double : k_here_single;
+            return finish_open_line(context, line_end, end, double_quote ? k_here_double : k_here_single);
         }
         if (current == '"' || current == '\'' || (current == '`' && dialect == Dialect::JULIA)) {
             const usize token_begin = position++;

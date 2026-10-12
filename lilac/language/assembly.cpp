@@ -262,15 +262,18 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
     return depth == 0 ? k_normal : k_nested_comment | depth;
 }
 
+/// Paints the line break of a line that ends inside a comment.
+[[nodiscard]] u32 finish_open_line(LexContext &context, usize line_end, usize end, u32 state) {
+    if (end > line_end) paint(context, {.begin = line_end, .end = end}, Style::COMMENT);
+    return state;
+}
+
 [[nodiscard]] u32 lex_line(LexContext &context, usize begin, usize end, u32 state, Dialect dialect) {
     const usize line_end = content_end(context.source, begin, end);
     usize position = begin;
     if ((state & k_state_mask) != k_normal) {
         state = continue_comment(context, position, line_end, state);
-        if (state != k_normal) {
-            if (end > line_end) paint(context, {.begin = line_end, .end = end}, Style::COMMENT);
-            return state;
-        }
+        if (state != k_normal) return finish_open_line(context, line_end, end, state);
     }
 
     Pending pending = Pending::NONE;
@@ -289,13 +292,14 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
             const usize token_end = close == std::string_view::npos || close >= line_end ? line_end : close + 2;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;
-            if (close == std::string_view::npos || close >= line_end) return k_block_comment;
+            if (close == std::string_view::npos || close >= line_end) return finish_open_line(context, line_end, end, k_block_comment);
             continue;
         }
         if (dialect == Dialect::WEBASSEMBLY && context.source.substr(position, 2) == "(;") {
+            paint(context, {.begin = position, .end = position + 2}, Style::COMMENT);
             position += 2;
             state = continue_comment(context, position, line_end, k_nested_comment | 1);
-            if (state != k_normal) return state;
+            if (state != k_normal) return finish_open_line(context, line_end, end, state);
             continue;
         }
         if (current == '"' || (current == '\'' && dialect != Dialect::VHDL)) {

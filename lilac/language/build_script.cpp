@@ -248,18 +248,21 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
     return k_normal;
 }
 
+/// Paints the line break of a line that ends inside a comment or string.
+[[nodiscard]] u32 finish_open_line(LexContext &context, usize line_end, usize end, u32 state) {
+    const u32 kind = state & k_state_mask;
+    if (end > line_end)
+        paint(context, {.begin = line_end, .end = end},
+              kind == k_block_comment || kind == k_bracket_comment ? Style::COMMENT : Style::STRING);
+    return state;
+}
+
 [[nodiscard]] u32 lex_line(LexContext &context, usize begin, usize end, u32 state, Dialect dialect) {
     const usize line_end = content_end(context.source, begin, end);
     usize position = begin;
     if ((state & k_state_mask) != k_normal) {
         state = continue_state(context, position, line_end, state, dialect);
-        if (state != k_normal) {
-            if (end > line_end)
-                paint(context, {.begin = line_end, .end = end},
-                      (state & k_state_mask) == k_block_comment || (state & k_state_mask) == k_bracket_comment ? Style::COMMENT :
-                                                                                                                 Style::STRING);
-            return state;
-        }
+        if (state != k_normal) return finish_open_line(context, line_end, end, state);
     }
 
     const usize first = skip_space(context.source, position, line_end);
@@ -305,7 +308,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
                     const usize token_end = find_bracket_close(context.source, position + 1 + delimiter.length, line_end, delimiter.hashes);
                     paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
                     if (token_end == line_end && !bracket_closed_at(context.source, token_end, delimiter.hashes))
-                        return k_bracket_comment | static_cast<u32>(delimiter.hashes + 1);
+                        return finish_open_line(context, line_end, end, k_bracket_comment | static_cast<u32>(delimiter.hashes + 1));
                     position = token_end;
                     continue;
                 }
@@ -318,7 +321,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + 2;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;
-            if (found == std::string_view::npos || found >= line_end) return k_block_comment;
+            if (found == std::string_view::npos || found >= line_end) return finish_open_line(context, line_end, end, k_block_comment);
             continue;
         }
         if (current == '{' && dialect == Dialect::INNO_SETUP) {
@@ -326,7 +329,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + 1;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;
-            if (found == std::string_view::npos || found >= line_end) return k_block_comment;
+            if (found == std::string_view::npos || found >= line_end) return finish_open_line(context, line_end, end, k_block_comment);
             continue;
         }
         if (current == '[' && dialect == Dialect::CMAKE) {
@@ -336,7 +339,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
                 paint(context, {.begin = position, .end = token_end}, Style::STRING);
                 position = token_end;
                 if (token_end == line_end && !bracket_closed_at(context.source, token_end, delimiter.hashes))
-                    return k_bracket_string | static_cast<u32>(delimiter.hashes + 1);
+                    return finish_open_line(context, line_end, end, k_bracket_string | static_cast<u32>(delimiter.hashes + 1));
                 continue;
             }
         }
@@ -353,7 +356,7 @@ void paint_string_details(LexContext &context, usize begin, usize end, Dialect d
             }
             paint(context, {.begin = token_begin, .end = position}, Style::STRING);
             paint_string_details(context, token_begin, position, dialect);
-            if (!closed && current == '"' && dialect == Dialect::CMAKE) return k_double_string;
+            if (!closed && current == '"' && dialect == Dialect::CMAKE) return finish_open_line(context, line_end, end, k_double_string);
             continue;
         }
         if (current == '$' || (dialect == Dialect::BATCH && (current == '%' || current == '!'))) {

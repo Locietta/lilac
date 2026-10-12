@@ -211,15 +211,18 @@ void paint_escapes(LexContext &context, usize begin, usize end, Dialect dialect)
     return found == std::string_view::npos || found >= line_end ? state : k_normal;
 }
 
+/// Paints the line break of a line that ends inside a comment.
+[[nodiscard]] u32 finish_open_line(LexContext &context, usize line_end, usize end, u32 state) {
+    if (end > line_end) paint(context, {.begin = line_end, .end = end}, Style::COMMENT);
+    return state;
+}
+
 [[nodiscard]] u32 lex_line(LexContext &context, usize begin, usize end, u32 state, Dialect dialect) {
     const usize line_end = content_end(context.source, begin, end);
     usize position = begin;
     if ((state & k_state_mask) != k_normal) {
         state = continue_comment(context, position, line_end, state);
-        if (state != k_normal) {
-            if (end > line_end) paint(context, {.begin = line_end, .end = end}, Style::COMMENT);
-            return state;
-        }
+        if (state != k_normal) return finish_open_line(context, line_end, end, state);
     }
     const usize first = skip_space(context.source, position, line_end);
     if (first >= line_end) return k_normal;
@@ -264,7 +267,7 @@ void paint_escapes(LexContext &context, usize begin, usize end, Dialect dialect)
             const usize token_end = found == std::string_view::npos || found >= line_end ? line_end : found + 2;
             paint(context, {.begin = position, .end = token_end}, Style::COMMENT);
             position = token_end;
-            if (found == std::string_view::npos || found >= line_end) return k_c_comment;
+            if (found == std::string_view::npos || found >= line_end) return finish_open_line(context, line_end, end, k_c_comment);
             continue;
         }
         if (dialect == Dialect::PASCAL && (current == '{' || context.source.substr(position, 2) == "(*")) {
@@ -275,7 +278,8 @@ void paint_escapes(LexContext &context, usize begin, usize end, Dialect dialect)
             const bool directive = brace && position + 1 < line_end && context.source[position + 1] == '$';
             paint(context, {.begin = position, .end = token_end}, directive ? Style::DIRECTIVE : Style::COMMENT);
             position = token_end;
-            if (found == std::string_view::npos || found >= line_end) return brace ? k_pascal_brace : k_pascal_paren;
+            if (found == std::string_view::npos || found >= line_end)
+                return finish_open_line(context, line_end, end, brace ? k_pascal_brace : k_pascal_paren);
             continue;
         }
         if ((dialect == Dialect::APDL || dialect == Dialect::ABAQUS) && current == '*' && position == first) {

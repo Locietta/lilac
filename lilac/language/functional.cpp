@@ -213,6 +213,13 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
     return close == std::string_view::npos || close >= line_end ? state : k_normal;
 }
 
+/// Paints the line break of a line that ends inside a comment or string.
+[[nodiscard]] u32 finish_open_line(LexContext &context, usize line_end, usize end, u32 state) {
+    if (end > line_end)
+        paint(context, {.begin = line_end, .end = end}, (state & k_state_mask) == k_nested_comment ? Style::COMMENT : Style::STRING);
+    return state;
+}
+
 [[nodiscard]] u32 lex_line(LexContext &context, usize begin, usize end, u32 state, Dialect dialect) {
     const usize line_end = content_end(context.source, begin, end);
     usize position = begin;
@@ -221,11 +228,7 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
     } else if ((state & k_state_mask) == k_triple_double || (state & k_state_mask) == k_triple_single) {
         state = continue_triple(context, position, line_end, state);
     }
-    if (state != k_normal) {
-        if (end > line_end)
-            paint(context, {.begin = line_end, .end = end}, (state & k_state_mask) == k_nested_comment ? Style::COMMENT : Style::STRING);
-        return state;
-    }
+    if (state != k_normal) return finish_open_line(context, line_end, end, state);
 
     Pending pending = Pending::NONE;
     while (position < line_end) {
@@ -251,7 +254,7 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
             position += delimiters.open.size();
             state = continue_comment(context, position, line_end, k_nested_comment | 1, dialect);
             paint(context, {.begin = token_begin, .end = token_begin + delimiters.open.size()}, Style::COMMENT);
-            if (state != k_normal) return state;
+            if (state != k_normal) return finish_open_line(context, line_end, end, state);
             continue;
         }
         if ((dialect == Dialect::ELIXIR || dialect == Dialect::FSHARP) &&
@@ -261,7 +264,7 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
             position += 3;
             state = continue_triple(context, position, line_end, double_quote ? k_triple_double : k_triple_single);
             paint(context, {.begin = token_begin, .end = position}, Style::STRING);
-            if (state != k_normal) return state;
+            if (state != k_normal) return finish_open_line(context, line_end, end, state);
             continue;
         }
         if (current == '"' || current == '\'') {

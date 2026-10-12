@@ -1,0 +1,6 @@
+target("test-document-markup")
+    set_kind("binary")
+    set_group("test")
+    add_files("main.cpp")
+    add_deps("lilac", "lilac-test-support")
+    add_tests("default")

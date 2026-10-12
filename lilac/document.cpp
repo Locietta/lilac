@@ -26,8 +26,10 @@ void assign(Document &document, std::string_view source) {
 }
 
 LexRange append(Document &document, std::string_view source) {
+    // Nothing changed, but the range must still start at a line start because
+    // callers lex it.
     if (source.empty()) {
-        return {.begin = document.source.size(), .end = document.source.size()};
+        return {.begin = document.line_starts.back(), .end = document.line_starts.back()};
     }
 
     const usize old_size = document.source.size();

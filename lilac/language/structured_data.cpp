@@ -263,6 +263,15 @@ struct QuotedToken {
     return count;
 }
 
+/// A block scalar header is `|` or `>` with optional indentation and chomping
+/// indicators, followed only by an optional comment.
+[[nodiscard]] bool block_scalar_header(std::string_view source, usize position, usize end) noexcept {
+    usize header_end = position + 1;
+    while (header_end < end && std::string_view("+-0123456789").contains(source[header_end])) ++header_end;
+    const usize next = skip_space(source, header_end, end);
+    return next == end || (next > header_end && source[next] == '#');
+}
+
 [[nodiscard]] u32 lex_yaml(LexContext &context, usize begin, usize end, u32 state) {
     const usize line_end = content_end(context.source, begin, end);
     usize position = skip_space(context.source, begin, line_end);
@@ -285,6 +294,9 @@ struct QuotedToken {
         return state;
     }
 
+    // Whether the next token starts a value, so that a block scalar header is
+    // not mistaken for a `|` or `>` inside a plain scalar.
+    bool value_start = true;
     while (position < line_end) {
         const char current = context.source[position];
         if (current == ' ' || current == '\t') {
@@ -300,19 +312,21 @@ struct QuotedToken {
             paint(context, {.begin = token_begin, .end = position},
                   next < line_end && context.source[next] == ':' ? Style::KEY : Style::STRING);
             if (current == '"') paint_escapes(context, token_begin, position);
+            value_start = false;
         } else if (current == '&' || current == '*') {
             const usize token_begin = position++;
             while (position < line_end && !ascii_space(context.source[position]) &&
                    !std::string_view(",[]{}").contains(context.source[position]))
                 ++position;
             paint(context, {.begin = token_begin, .end = position}, Style::ANCHOR);
+            value_start = value_start && current == '&';
         } else if (current == '!') {
             const usize token_begin = position++;
             while (position < line_end && !ascii_space(context.source[position]) &&
                    !std::string_view(",[]{}").contains(context.source[position]))
                 ++position;
             paint(context, {.begin = token_begin, .end = position}, Style::TAG);
-        } else if (current == '|' || current == '>') {
+        } else if ((current == '|' || current == '>') && value_start && block_scalar_header(context.source, position, line_end)) {
             const usize token_begin = position++;
             while (position < line_end && std::string_view("+-0123456789").contains(context.source[position])) ++position;
             paint(context, {.begin = token_begin, .end = position}, Style::OPERATOR);
@@ -322,6 +336,7 @@ struct QuotedToken {
             const usize token_begin = position;
             position = number_end(context.source, position, line_end);
             paint(context, {.begin = token_begin, .end = position}, Style::NUMBER);
+            value_start = false;
         } else if (!ascii_space(current) && !std::string_view("[]{},:").contains(current)) {
             const usize token_begin = position++;
             while (position < line_end && !ascii_space(context.source[position]) &&
@@ -333,9 +348,11 @@ struct QuotedToken {
                   next < line_end && context.source[next] == ':' ? Style::KEY :
                   k_yaml_constants.contains(word)                ? Style::CONSTANT :
                                                                    Style::DEFAULT);
+            value_start = word == "-" || word == "?";
         } else {
             paint(context, {.begin = position, .end = position + 1}, Style::OPERATOR);
             ++position;
+            value_start = current == ':';
         }
     }
     return state;

@@ -1,8 +1,8 @@
 # Lexer findings
 
 Temporary working notes from the 2026-10-12 review of lighter 0.3.1 (`584438d`),
-made before the lexer moved here, extended by the test audit of lilac 0.1.0
-(see [test-audit.md](test-audit.md)). Line numbers may drift. Delete this file
+made before the lexer moved here, extended by the test audit of lilac 0.1.0.
+Line numbers may drift. Delete this file
 once the issues are fixed or tracked elsewhere. IDs are stable; the
 verification levels mean: `verified` (traced by hand), `reproduced` (a repro
 program was run), `reported` (a reviewer's reading, not re-checked).

@@ -135,7 +135,8 @@ enum struct PendingDeclaration : u8 {
     }
 }
 
-[[nodiscard]] bool nested_comments(Dialect dialect) noexcept { return dialect == Dialect::D || dialect == Dialect::SWIFT; }
+// D nests only `/+ +/` comments, which are not supported; its `/* */` does not nest.
+[[nodiscard]] bool nested_comments(Dialect dialect) noexcept { return dialect == Dialect::SWIFT; }
 
 [[nodiscard]] bool triple_strings(Dialect dialect) noexcept {
     return dialect == Dialect::JAVA || dialect == Dialect::CSHARP || dialect == Dialect::DART || dialect == Dialect::GROOVY ||

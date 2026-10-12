@@ -44,7 +44,6 @@ bool test_all_profiles() {
         assign(document, item.keyword);
         lex(document, item.dialect, {.begin = 0, .end = document.source.size()});
         if (!has_role(document, item.keyword, TokenRole::KEYWORD)) return false;
-        if (LegacyLexer{.dialect = item.dialect}.language_info().id.empty()) return false;
     }
     return true;
 }

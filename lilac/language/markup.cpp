@@ -26,6 +26,8 @@ constexpr u32 k_normal = 0;
 constexpr u32 k_comment = 0x1000'0000;
 constexpr u32 k_cdata = 0x2000'0000;
 constexpr u32 k_tag = 0x3000'0000;
+constexpr u32 k_tag_double_quote = 1;
+constexpr u32 k_tag_single_quote = 2;
 constexpr u32 k_markdown_fence = 0x4000'0000;
 constexpr u32 k_fence_character = 1 << 8;
 constexpr u32 k_fence_length_mask = 0xff;
@@ -54,11 +56,6 @@ constexpr u32 k_fence_length_mask = 0xff;
     return position;
 }
 
-[[nodiscard]] usize quoted_end(std::string_view source, usize position, usize end, char quote) noexcept {
-    while (position < end && source[position] != quote) ++position;
-    return position < end ? position + 1 : position;
-}
-
 void paint_entities(LexContext &context, usize begin, usize end) {
     for (usize position = begin; position < end;) {
         if (context.source[position] != '&') {
@@ -74,13 +71,34 @@ void paint_entities(LexContext &context, usize begin, usize end) {
 struct TagResult {
     usize position = 0;
     bool closed = false;
+    /// The quote of an attribute value still open at the end of the line.
+    char quote = '\0';
 };
 
-[[nodiscard]] TagResult lex_tag(LexContext &context, usize position, usize end, bool opening) {
+[[nodiscard]] u32 tag_state(char quote) noexcept {
+    return k_tag | (quote == '"' ? k_tag_double_quote : quote == '\'' ? k_tag_single_quote : 0);
+}
+
+[[nodiscard]] char tag_quote(u32 state) noexcept {
+    if ((state & k_tag_double_quote) != 0) return '"';
+    if ((state & k_tag_single_quote) != 0) return '\'';
+    return '\0';
+}
+
+[[nodiscard]] TagResult lex_tag(LexContext &context, usize position, usize end, bool opening, char quote = '\0') {
     bool expect_name = opening;
     while (position < end) {
         const char current = context.source[position];
-        if (current == ' ' || current == '\t') {
+        if (quote != '\0') {
+            usize close = position;
+            while (close < end && context.source[close] != quote) ++close;
+            const usize token_end = close < end ? close + 1 : end;
+            paint(context, {.begin = position, .end = token_end}, Style::VALUE);
+            paint_entities(context, position, token_end);
+            position = token_end;
+            if (close == end) break;
+            quote = '\0';
+        } else if (current == ' ' || current == '\t') {
             ++position;
         } else if (context.source.substr(position).starts_with("/>") || context.source.substr(position).starts_with("?>")) {
             paint(context, {.begin = position, .end = position + 2}, Style::OPERATOR);
@@ -92,10 +110,9 @@ struct TagResult {
             paint(context, {.begin = position, .end = position + 1}, Style::OPERATOR);
             ++position;
         } else if (current == '"' || current == '\'') {
-            const usize token_begin = position++;
-            position = quoted_end(context.source, position, end, current);
-            paint(context, {.begin = token_begin, .end = position}, Style::VALUE);
-            paint_entities(context, token_begin, position);
+            paint(context, {.begin = position, .end = position + 1}, Style::VALUE);
+            ++position;
+            quote = current;
         } else if (name_start(current)) {
             const usize token_begin = position++;
             while (position < end && name_continue(context.source[position])) ++position;
@@ -110,10 +127,10 @@ struct TagResult {
             ++position;
         }
     }
-    return {.position = position};
+    return {.position = position, .quote = quote};
 }
 
-[[nodiscard]] u32 lex_markup(LexContext &context, usize begin, usize end, u32 state, Dialect dialect) {
+[[nodiscard]] u32 lex_markup(LexContext &context, usize begin, usize end, u32 state) {
     const usize line_end = content_end(context.source, begin, end);
     usize position = begin;
     while (position < line_end) {
@@ -129,9 +146,12 @@ struct TagResult {
             continue;
         }
         if (kind == k_tag) {
-            const TagResult result = lex_tag(context, position, line_end, false);
+            const TagResult result = lex_tag(context, position, line_end, false, tag_quote(state));
             position = result.position;
-            if (!result.closed) break;
+            if (!result.closed) {
+                state = tag_state(result.quote);
+                break;
+            }
             state = k_normal;
             continue;
         }
@@ -160,7 +180,7 @@ struct TagResult {
             paint(context, {.begin = position, .end = opener_end}, Style::OPERATOR);
             const TagResult result = lex_tag(context, opener_end, line_end, true);
             position = result.position;
-            if (!result.closed) state = k_tag;
+            if (!result.closed) state = tag_state(result.quote);
             continue;
         }
         if (context.source[position] == '&') {
@@ -173,13 +193,12 @@ struct TagResult {
     }
 
     if (end > line_end && (state & k_state_mask) != k_normal) {
-        const Style style = (state & k_state_mask) == k_comment ? Style::COMMENT :
-                            (state & k_state_mask) == k_cdata   ? Style::DOCUMENTATION :
-                            (state & k_state_mask) == k_tag     ? Style::DEFAULT :
-                                                                  Style::DEFAULT;
+        const Style style = (state & k_state_mask) == k_comment                         ? Style::COMMENT :
+                            (state & k_state_mask) == k_cdata                           ? Style::DOCUMENTATION :
+                            (state & k_state_mask) == k_tag && tag_quote(state) != '\0' ? Style::VALUE :
+                                                                                          Style::DEFAULT;
         paint(context, {.begin = line_end, .end = end}, style);
     }
-    if (dialect == Dialect::XML && state == k_normal) paint_entities(context, begin, line_end);
     return state;
 }
 
@@ -251,8 +270,10 @@ void lex_markdown_inline(LexContext &context, usize position, usize end) {
         paint(context, {.begin = begin, .end = end}, Style::CODE);
         return state;
     }
+    // Any other state comes from an HTML comment or tag that lex_markup left open.
+    if (state != k_normal) return lex_markup(context, begin, end, state);
     if (position == line_end) return k_normal;
-    if (context.source.substr(position).starts_with("<!--")) return lex_markup(context, begin, end, k_normal, Dialect::HTML);
+    if (context.source.substr(position).starts_with("<!--")) return lex_markup(context, begin, end, k_normal);
 
     if (context.source[position] == '`' || context.source[position] == '~') {
         const char marker = context.source[position];
@@ -290,7 +311,7 @@ void lex_markdown_inline(LexContext &context, usize position, usize end) {
 
 [[nodiscard]] u32 lex_line(LexContext &context, usize begin, usize end, u32 state, Dialect dialect) {
     paint(context, {.begin = begin, .end = end}, Style::DEFAULT);
-    return dialect == Dialect::MARKDOWN ? lex_markdown(context, begin, end, state) : lex_markup(context, begin, end, state, dialect);
+    return dialect == Dialect::MARKDOWN ? lex_markdown(context, begin, end, state) : lex_markup(context, begin, end, state);
 }
 
 } // namespace

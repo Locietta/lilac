@@ -203,8 +203,11 @@ void paint_escapes(LexContext &context, usize begin, usize end) {
             continue;
         }
         if (dialect == Dialect::LATEX && context.source.substr(position).starts_with("\\begin{verbatim}")) {
-            paint(context, {.begin = position, .end = line_end}, Style::STRING);
-            return finish_open_line(context, line_end, end, k_verbatim);
+            paint(context, {.begin = position, .end = position + 16}, Style::STRING);
+            position += 16;
+            state = continue_state(context, position, line_end, k_verbatim, dialect);
+            if (state != k_normal) return finish_open_line(context, line_end, end, state);
+            continue;
         }
         if (dialect == Dialect::LATEX && current == '\\') {
             const usize token_begin = position++;

@@ -87,20 +87,25 @@ enum struct PendingDeclaration : u8 {
     return PendingDeclaration::NONE;
 }
 
-[[nodiscard]] usize quoted_end(std::string_view source, usize position, usize end, char quote, char close) noexcept {
+struct TokenEnd {
+    usize position = 0;
+    bool closed = false;
+};
+
+[[nodiscard]] TokenEnd quoted_end(std::string_view source, usize position, usize end, char quote, char close) noexcept {
     while (position < end) {
         if (source[position] == close) {
             if (position + 1 < end && source[position + 1] == close && quote != '[')
                 position += 2;
             else
-                return position + 1;
+                return {.position = position + 1, .closed = true};
         } else if (source[position] == '\\' && position + 1 < end) {
             position += 2;
         } else {
             ++position;
         }
     }
-    return position;
+    return {.position = position};
 }
 
 void paint_string_escapes(LexContext &context, usize begin, usize end) {
@@ -147,10 +152,11 @@ void paint_string_escapes(LexContext &context, usize begin, usize end) {
         }
         if (kind == k_single_string) {
             const usize token_begin = position;
-            position = quoted_end(context.source, position, line_end, '\'', '\'');
+            const TokenEnd token_end = quoted_end(context.source, position, line_end, '\'', '\'');
+            position = token_end.position;
             paint(context, {.begin = token_begin, .end = position}, Style::STRING);
             paint_string_escapes(context, token_begin, position);
-            if (position == line_end && (position == token_begin || context.source[position - 1] != '\'')) break;
+            if (!token_end.closed) break;
             state = k_normal;
             continue;
         }
@@ -182,14 +188,15 @@ void paint_string_escapes(LexContext &context, usize begin, usize end) {
             if (found == std::string_view::npos || found >= line_end) state = k_dollar_string;
         } else if (current == '\'') {
             const usize token_begin = position++;
-            position = quoted_end(context.source, position, line_end, current, current);
+            const TokenEnd token_end = quoted_end(context.source, position, line_end, current, current);
+            position = token_end.position;
             paint(context, {.begin = token_begin, .end = position}, Style::STRING);
             paint_string_escapes(context, token_begin, position);
-            if (position == line_end && context.source[position - 1] != current) state = k_single_string;
+            if (!token_end.closed) state = k_single_string;
         } else if (current == '"' || current == '`' || current == '[') {
             const usize token_begin = position++;
             const char close = current == '[' ? ']' : current;
-            position = quoted_end(context.source, position, line_end, current, close);
+            position = quoted_end(context.source, position, line_end, current, close).position;
             paint(context, {.begin = token_begin, .end = position}, Style::QUOTED_IDENTIFIER);
         } else if ((current == ':' || current == '@' || current == '$') && position + 1 < line_end &&
                    (ascii_digit(context.source[position + 1]) || identifier_start(context.source[position + 1]))) {

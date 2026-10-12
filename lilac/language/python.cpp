@@ -116,6 +116,7 @@ struct TokenEnd {
     usize position = slash + 1;
     if (position >= end) return position;
     const char kind = source[position++];
+    const bool octal = kind >= '0' && kind <= '7';
     usize count = 0;
     if (kind == 'x')
         count = 2;
@@ -123,17 +124,21 @@ struct TokenEnd {
         count = 4;
     else if (kind == 'U')
         count = 8;
-    else if (kind >= '0' && kind <= '7')
+    else if (octal)
         count = 2;
     const usize limit = std::min(end, position + count);
-    while (position < limit && (ascii_hex_digit(source[position]) || (kind >= '0' && kind <= '7' && source[position] <= '7'))) ++position;
+    while (position < limit && (octal ? source[position] >= '0' && source[position] <= '7' : ascii_hex_digit(source[position]))) {
+        ++position;
+    }
     return position;
 }
 
 [[nodiscard]] TokenEnd string_end(std::string_view source, usize position, usize end, char delimiter, bool triple, bool raw) {
     while (position < end) {
-        if (!raw && source[position] == '\\') {
-            position = escape_end(source, position, end);
+        if (source[position] == '\\') {
+            // A raw string keeps the backslash, but it still stops the next
+            // character from closing the string.
+            position = raw ? std::min(end, position + 2) : escape_end(source, position, end);
         } else if (triple && position + 2 < end && source[position] == delimiter && source[position + 1] == delimiter &&
                    source[position + 2] == delimiter) {
             return {.position = position + 3, .closed = true};
